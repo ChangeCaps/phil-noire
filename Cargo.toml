@@ -1,0 +1,20 @@
+[package]
+authors = ["Hjalte Nannestad <hjalte.nannestad@gmail.com>"]
+edition = "2018"
+name = "phil-noire"
+version = "0.1.0"
+
+[dependencies]
+anyhow = "1.0.41"
+base64 = "0.13.0"
+bytemuck = { version = "1.7.0", features = ["derive"] }
+egui = "0.13.1"
+futures = "0.3.15"
+glam = { version = "0.17.1", features = ["bytemuck", "serde"] } 
+gltf = "0.16.0"
+log = "0.4.14"
+ron = "0.6.4"
+serde = { version = "1.0.126", features = ["derive"] }
+simple_logger = "1.11.0"
+wgpu = "0.9"
+winit = "0.25.0"

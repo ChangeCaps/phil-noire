@@ -1,0 +1,77 @@
+World(
+	data: WorldData (
+		render_settings: RenderSettings(
+			bloom: 0.1,
+		),
+		player: Some(NodeId(0)),
+	),
+	nodes: {
+		NodeId(0): Node(
+			transform: Transform(
+				translation: (0.0, 0.0, 0.0),	
+				rotation: (0.0, 0.0, 0.0, 1.0),
+				scale: (1.0, 1.0, 1.0),
+			),
+			components: [
+				Player,
+				Mesh(
+					mesh: "assets/phishhead.gltf",
+					material: PbrMaterial(
+						albedo: (0.1, 0.3, 0.5),					
+						emission: (0.0, 0.0, 0.0),
+						specular_bloom: 0.02,
+					),
+				),
+			],
+		),
+		NodeId(1): Node(
+			transform: Transform(
+				translation: (0.0, 0.0, 0.0),	
+				rotation: (0.0, 0.0, 0.0, 1.0),
+				scale: (1.0, 1.0, 1.0),
+			),
+			components: [
+				DirectionalLight(
+					DirectionalLight(
+						direction: (2.0, -0.5, 1.0),
+						color: (0.9, 0.8, 0.7),
+						strength: 1.0,
+					),
+				),
+			],
+		),
+		NodeId(2): Node(
+			transform: Transform(
+				translation: (0.0, 0.0, -5.0),	
+				rotation: (0.0, 0.0, 0.0, 1.0),
+				scale: (1.0, 1.0, 1.0),
+			),
+			components: [
+				PlayerCamera,
+				Camera(
+					fov: 45.0,
+					near: 0.1,
+					far: 1000.0,
+				),
+			],
+		),
+		NodeId(3): Node(
+			transform: Transform(
+				translation: (0.0, 0.0, 0.0),
+				rotation: (0.0, 0.0, 0.0, 1.0),
+				scale: (1.0, 1.0, 1.0),
+			),
+			components: [
+				Mesh(
+					mesh: "assets/plane.gltf",
+					material: PbrMaterial(
+						albedo: (0.1, 0.1, 0.1),
+						emission: (0.0, 0.0, 0.0),
+						specular_bloom: 0.02,
+					),
+				),
+			],
+		),
+	},
+	next_node_id: NodeId(3),
+)
