@@ -135,6 +135,8 @@ pub enum Renderable<'a> {
         vertex_buffer: &'a wgpu::Buffer,
         index_buffer: &'a wgpu::Buffer,
         indices: u32,
+        albedo: Option<&'a Arc<wgpu::TextureView>>,
+        emission: Option<&'a Arc<wgpu::TextureView>>,
         material: &'a PbrMaterial,
         transform: Mat4,
     },
@@ -156,6 +158,8 @@ pub struct Frame<'a> {
     pub camera_matrix: Mat4,
     pub camera_position: Vec3,
     pub bloom: f32,
+    pub ambient_color: Vec3,
+    pub ambient_strength: f32,
 }
 
 impl<'a> Frame<'a> {
@@ -169,6 +173,8 @@ impl<'a> Frame<'a> {
             camera_matrix: Mat4::ZERO,
             camera_position: Vec3::ZERO,
             bloom: 0.0,
+            ambient_color: Vec3::ONE,
+            ambient_strength: 0.0,
         }
     }
 
@@ -187,7 +193,14 @@ impl<'a> Frame<'a> {
     }
 
     #[inline]
-    pub fn render_mesh(&mut self, mesh: &'a Mesh, material: &'a PbrMaterial, transform: Mat4) {
+    pub fn render_mesh(
+        &mut self,
+        mesh: &'a Mesh,
+        material: &'a PbrMaterial,
+        albedo: Option<&'a Arc<wgpu::TextureView>>,
+        emission: Option<&'a Arc<wgpu::TextureView>>,
+        transform: Mat4,
+    ) {
         let indices = mesh.len_indices();
         let (vertex_buffer, index_buffer) = mesh.get_buffers().expect("mesh buffers don't exist");
 
@@ -195,6 +208,8 @@ impl<'a> Frame<'a> {
             vertex_buffer,
             index_buffer,
             indices,
+            albedo,
+            emission,
             material,
             transform,
         });
@@ -291,6 +306,7 @@ impl UiData {
 pub struct Renderer {
     pub g_buffer: GBuffer,
     pub pipelines: RenderPipelines,
+    pub default_texture: Arc<wgpu::TextureView>,
     pub light_uniform_bindings: BindGroup,
     pub light_texture_bindings: BindGroup,
     pub bloom_uniform_bindings: BindGroup,
@@ -299,7 +315,7 @@ pub struct Renderer {
     pub bloom_h_texture_bindings: BindGroup,
     pub combine_texture_bindings: BindGroup,
     pub sampler_bindings: BindGroup,
-    pub mesh_bindings: Vec<BindGroup>,
+    pub mesh_bindings: Vec<(BindGroup, BindGroup)>,
     pub ui_data: Vec<UiData>,
     pub width: u32,
     pub height: u32,
@@ -312,9 +328,39 @@ impl Renderer {
         width: u32,
         height: u32,
     ) -> Self {
+        let texture = instance.device.create_texture_with_data(
+            &instance.queue,
+            &wgpu::TextureDescriptor {
+                label: Some("default texture"),
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                dimension: wgpu::TextureDimension::D2,
+                mip_level_count: 1,
+                sample_count: 1,
+                usage: wgpu::TextureUsage::COPY_DST | wgpu::TextureUsage::SAMPLED,
+            },
+            &[255u8; 4],
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("default texture view"),
+            aspect: wgpu::TextureAspect::All,
+            format: None,
+            dimension: None,
+            base_mip_level: 0,
+            mip_level_count: None,
+            base_array_layer: 0,
+            array_layer_count: None,
+        });
+
         Self {
             g_buffer: GBuffer::new(instance, width, height),
             pipelines: RenderPipelines::new(instance, sc_format),
+            default_texture: Arc::new(view),
             light_uniform_bindings: BindGroup::new(instance),
             light_texture_bindings: BindGroup::new(instance),
             bloom_uniform_bindings: BindGroup::new(instance),
@@ -478,6 +524,7 @@ impl Renderer {
 
         self.sampler_bindings
             .bind_sampler(0, &self.g_buffer.sampler);
+        self.sampler_bindings.generate();
 
         let mut encoder = instance
             .device
@@ -499,19 +546,34 @@ impl Renderer {
                 Renderable::Mesh {
                     material,
                     ref transform,
+                    albedo,
+                    emission,
                     ..
                 } => {
                     if mesh_index >= self.mesh_bindings.len() {
-                        self.mesh_bindings.push(BindGroup::new(instance));
+                        self.mesh_bindings
+                            .push((BindGroup::new(instance), BindGroup::new(instance)));
                     }
 
-                    let bind_group = &mut self.mesh_bindings[mesh_index];
+                    let (uniforms, textures) = &mut self.mesh_bindings[mesh_index];
 
-                    bind_group.bind_uniform(0, &frame.camera_matrix);
-                    bind_group.bind_uniform(1, transform);
-                    bind_group.bind_uniform(2, material);
+                    uniforms.bind_uniform(0, &frame.camera_matrix);
+                    uniforms.bind_uniform(1, transform);
+                    uniforms.bind_uniform(2, material);
 
-                    bind_group.generate();
+                    textures.bind_texture(
+                        0,
+                        albedo.unwrap_or(&self.default_texture),
+                        wgpu::TextureSampleType::Float { filterable: true },
+                    );
+                    textures.bind_texture(
+                        1,
+                        emission.unwrap_or(&self.default_texture),
+                        wgpu::TextureSampleType::Float { filterable: true },
+                    );
+
+                    uniforms.generate();
+                    textures.generate();
 
                     mesh_index += 1;
                 }
@@ -529,9 +591,11 @@ impl Renderer {
                     indices,
                     ..
                 } => {
-                    let bind_group = &self.mesh_bindings[mesh_index];
+                    let (uniforms, textures) = &self.mesh_bindings[mesh_index];
 
-                    render_pass.set_bind_group(0, bind_group.inner().unwrap(), &[]);
+                    render_pass.set_bind_group(0, uniforms.inner().unwrap(), &[]);
+                    render_pass.set_bind_group(1, textures.inner().unwrap(), &[]);
+                    render_pass.set_bind_group(2, self.sampler_bindings.inner().unwrap(), &[]);
 
                     render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                     render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
@@ -561,10 +625,16 @@ impl Renderer {
         directional_lights.pad(12);
         directional_lights.write_slice(&frame.directional_lights);
 
+        let mut uniforms = UniformBlock::new();
+
+        uniforms.write(&frame.ambient_color);
+        uniforms.write(&frame.ambient_strength);
+
         self.light_uniform_bindings
             .bind_uniform_block(0, directional_lights);
         self.light_uniform_bindings
             .bind_uniform(1, &frame.camera_position);
+        self.light_uniform_bindings.bind_uniform_block(2, uniforms);
 
         self.light_texture_bindings.bind_texture(
             0,

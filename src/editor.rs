@@ -1,6 +1,8 @@
 use crate::{
     instance::Instance,
-    node::{drag3, drag_vec3},
+    labled,
+    node::{drag3, drag_vec3, Node},
+    transform::Transform,
     world::World,
 };
 use egui::*;
@@ -23,7 +25,7 @@ impl Editor {
         }
     }
 
-    pub fn ui(&mut self, world: &mut World) {
+    pub fn ui(&mut self, world: &mut World, loaded_world: &str) {
         if self.ctx.input().key_pressed(Key::Home) {
             self.open ^= true;
         }
@@ -35,38 +37,102 @@ impl Editor {
                     ui.add(
                         Slider::new(&mut world.data.render_settings.bloom, 0.0..=1.0).text("Bloom"),
                     );
+
+                    let mut ambient_color = world.data.render_settings.ambient_color.into();
+                    labled!(
+                        ui,
+                        "Ambient Color",
+                        ui.color_edit_button_rgb(&mut ambient_color)
+                    );
+                    world.data.render_settings.ambient_color = ambient_color.into();
+
+                    labled!(
+                        ui,
+                        "Ambient Strength",
+                        ui.add(
+                            DragValue::new(&mut world.data.render_settings.ambient_strength)
+                                .speed(0.1)
+                        )
+                    );
                 });
 
                 ui.collapsing("World", |ui| {
+                    ui.horizontal(|ui| {
+                        if ui.button("Save").clicked() {
+                            let world_ron = ron::ser::to_string_pretty(
+                                world,
+                                ron::ser::PrettyConfig::default(),
+                            )
+                            .unwrap();
+
+                            std::fs::write(loaded_world, world_ron).unwrap();
+                        }
+
+                        if ui.button("Add").clicked() {
+                            world.spawn(Node {
+                                name: String::from("New Node"),
+                                transform: Transform::IDENTITY,
+                                components: Vec::new(),
+                            });
+                        }
+
+                        if ui.button("Validate").clicked() {
+                            world.validate_next_node();
+                        }
+                    });
+
+                    ui.separator();
+
+                    ui.label(format!("Next node id: '[{}]'", world.next_node_id.0));
+                    ui.label(format!("Next node validated: '{}'", world.next_node_validated));
+
+                    ui.separator();
+
+                    let mut despawn = Vec::new();
+
                     for (id, node) in &mut world.nodes {
-                        ui.collapsing(id.0, |ui| {
-                            drag_vec3(ui, &mut node.transform.translation);
-
-                            let (mut y, mut x, mut z) =
-                                node.transform.rotation.to_euler(glam::EulerRot::YXZ);
-
-                            x = x / std::f32::consts::PI * 180.0;
-                            y = y / std::f32::consts::PI * 180.0;
-                            z = z / std::f32::consts::PI * 180.0;
-
-                            drag3(ui, &mut x, &mut y, &mut z);
-
-                            x = x / 180.0 * std::f32::consts::PI;
-                            y = y / 180.0 * std::f32::consts::PI;
-                            z = z / 180.0 * std::f32::consts::PI;
-
-                            node.transform.rotation =
-                                Quat::from_euler(glam::EulerRot::YXZ, y, x, z);
-
-                            drag_vec3(ui, &mut node.transform.scale);
-
-                            ui.separator();
-                            for (i, component) in node.components.iter_mut().enumerate() {
-                                ui.collapsing(component.name(), |ui| {
-                                    component.ui(ui);
+                        CollapsingHeader::new(format!("[{}]: {}", id.0, node.name))
+                            .id_source(id)
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    if ui.button("Remove").clicked() {
+                                        despawn.push(*id);
+                                    }
                                 });
-                            }
-                        });
+
+                                ui.text_edit_singleline(&mut node.name);
+
+                                drag_vec3(ui, &mut node.transform.translation);
+
+                                let (mut y, mut x, mut z) =
+                                    node.transform.rotation.to_euler(glam::EulerRot::YXZ);
+
+                                x = x / std::f32::consts::PI * 180.0;
+                                y = y / std::f32::consts::PI * 180.0;
+                                z = z / std::f32::consts::PI * 180.0;
+
+                                drag3(ui, &mut x, &mut y, &mut z);
+
+                                x = x / 180.0 * std::f32::consts::PI;
+                                y = y / 180.0 * std::f32::consts::PI;
+                                z = z / 180.0 * std::f32::consts::PI;
+
+                                node.transform.rotation =
+                                    Quat::from_euler(glam::EulerRot::YXZ, y, x, z);
+
+                                drag_vec3(ui, &mut node.transform.scale);
+
+                                ui.separator();
+                                for (i, component) in node.components.iter_mut().enumerate() {
+                                    ui.collapsing(component.name(), |ui| {
+                                        component.ui(ui);
+                                    });
+                                }
+                            });
+                    }
+
+                    for id in despawn {
+                        world.despawn(&id);
                     }
                 });
             });

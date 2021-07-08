@@ -1,77 +1,105 @@
-World(
-	data: WorldData (
-		render_settings: RenderSettings(
-			bloom: 0.1,
-		),
-		player: Some(NodeId(0)),
-	),
-	nodes: {
-		NodeId(0): Node(
-			transform: Transform(
-				translation: (0.0, 0.0, 0.0),	
-				rotation: (0.0, 0.0, 0.0, 1.0),
-				scale: (1.0, 1.0, 1.0),
-			),
-			components: [
-				Player,
-				Mesh(
-					mesh: "assets/phishhead.gltf",
-					material: PbrMaterial(
-						albedo: (0.1, 0.3, 0.5),					
-						emission: (0.0, 0.0, 0.0),
-						specular_bloom: 0.02,
-					),
-				),
-			],
-		),
-		NodeId(1): Node(
-			transform: Transform(
-				translation: (0.0, 0.0, 0.0),	
-				rotation: (0.0, 0.0, 0.0, 1.0),
-				scale: (1.0, 1.0, 1.0),
-			),
-			components: [
-				DirectionalLight(
-					DirectionalLight(
-						direction: (2.0, -0.5, 1.0),
-						color: (0.9, 0.8, 0.7),
-						strength: 1.0,
-					),
-				),
-			],
-		),
-		NodeId(2): Node(
-			transform: Transform(
-				translation: (0.0, 0.0, -5.0),	
-				rotation: (0.0, 0.0, 0.0, 1.0),
-				scale: (1.0, 1.0, 1.0),
-			),
-			components: [
-				PlayerCamera,
-				Camera(
-					fov: 45.0,
-					near: 0.1,
-					far: 1000.0,
-				),
-			],
-		),
-		NodeId(3): Node(
-			transform: Transform(
-				translation: (0.0, 0.0, 0.0),
-				rotation: (0.0, 0.0, 0.0, 1.0),
-				scale: (1.0, 1.0, 1.0),
-			),
-			components: [
-				Mesh(
-					mesh: "assets/plane.gltf",
-					material: PbrMaterial(
-						albedo: (0.1, 0.1, 0.1),
-						emission: (0.0, 0.0, 0.0),
-						specular_bloom: 0.02,
-					),
-				),
-			],
-		),
-	},
-	next_node_id: NodeId(3),
+(
+    data: (
+        render_settings: (
+            bloom: 0.1,
+            ambient_color: (0.859375, 1, 0.9934082),
+            ambient_strength: 0.1,
+        ),
+        player: Some((0)),
+    ),
+    nodes: {
+        (4): (
+            name: "Desk",
+            transform: (
+                translation: (0, 0, 2),
+                rotation: (0, 0.7071068, 0, 0.7071068),
+                scale: (1, 1, 1),
+            ),
+            components: [
+                Mesh(
+                    mesh: "assets/desk.gltf",
+                    albedo: "assets/desk_albedo.png",
+                    emission: "",
+                    material: (
+                        albedo: (1, 1, 1),
+                        emission: (0, 0, 0),
+                        specular_bloom: 0.02,
+                    ),
+                ),
+            ],
+        ),
+        (2): (
+            name: "Player Camera",
+            transform: (
+                translation: (0, 21.7, -3),
+                rotation: (0, 0.75774026, 0.65255636, 0),
+                scale: (1, 1, 1),
+            ),
+            components: [
+                PlayerCamera,
+                Camera(
+                    fov: 45,
+                    near: 0.1,
+                    far: 1000,
+                ),
+            ],
+        ),
+        (3): (
+            name: "Floor Mesh",
+            transform: (
+                translation: (0, 0, 0),
+                rotation: (0, 0, 0, 1),
+                scale: (1, 1, 1),
+            ),
+            components: [
+                Mesh(
+                    mesh: "assets/plane.gltf",
+                    albedo: "",
+                    emission: "",
+                    material: (
+                        albedo: (0.1, 0.1, 0.1),
+                        emission: (0, 0, 0),
+                        specular_bloom: 0.02,
+                    ),
+                ),
+            ],
+        ),
+        (1): (
+            name: "Sun Light",
+            transform: (
+                translation: (0, 0, 0),
+                rotation: (0, 0, 0, 1),
+                scale: (1, 1, 1),
+            ),
+            components: [
+                DirectionalLight((
+                    direction: (2, -0.5, 1),
+                    color: (0.9, 0.8, 0.7),
+                    strength: 1,
+                )),
+            ],
+        ),
+        (0): (
+            name: "Player",
+            transform: (
+                translation: (0, 1.7, 0),
+                rotation: (0, 0, 0, 1),
+                scale: (1, 1, 1),
+            ),
+            components: [
+                Player,
+                Mesh(
+                    mesh: "assets/phishhead/model.gltf",
+                    albedo: "assets/phishhead/albedo.png",
+                    emission: "",
+                    material: (
+                        albedo: (1, 1, 1),
+                        emission: (0, 0, 0),
+                        specular_bloom: 0.05,
+                    ),
+                ),
+            ],
+        ),
+    },
+    next_node_id: (5),
 )

@@ -39,6 +39,15 @@ struct Camera {
 [[group(0), binding(1)]]
 var<uniform> camera: Camera;
 
+[[block]]
+struct Uniforms {
+	ambient_color: vec3<f32>;
+	ambient_strength: f32;
+};
+
+[[group(0), binding(2)]]
+var<uniform> uniforms: Uniforms;
+
 [[group(1), binding(0)]]
 var t_depth: texture_depth_2d;
 
@@ -65,7 +74,7 @@ fn main(in: VertexOutput) -> FragmentOutput {
 	let position = p.xyz;
 	let normal = textureSample(t_normal, sampler, in.uv).xyz;
 
-	var light: vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+	var light: vec3<f32> = uniforms.ambient_color * uniforms.ambient_strength;
 
 	var i: u32 = 0u;
 	loop {

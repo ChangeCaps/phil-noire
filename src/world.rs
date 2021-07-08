@@ -5,16 +5,21 @@ use crate::{
     renderer::Frame,
 };
 use gltf::Gltf;
+use image::{EncodableLayout, GenericImageView};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fs::read_to_string,
+    io::BufReader,
     path::{Path, PathBuf},
+    sync::Arc,
 };
+use wgpu::util::DeviceExt;
 
 pub struct Resources {
     pub instance: Instance,
     pub meshes: HashMap<PathBuf, Mesh>,
+    pub textures: HashMap<PathBuf, Arc<wgpu::TextureView>>,
     pub worlds: HashMap<PathBuf, World>,
 }
 
@@ -23,6 +28,7 @@ impl Resources {
         Self {
             instance: instance.clone(),
             meshes: HashMap::new(),
+            textures: HashMap::new(),
             worlds: HashMap::new(),
         }
     }
@@ -34,13 +40,16 @@ impl Resources {
             let entry = entry?;
 
             if entry.path().is_dir() {
-                self.load_assets(path.as_ref())?;
+                self.load_assets(entry.path())?;
             } else {
                 let path = entry.path();
                 if let Some(ext) = path.extension() {
-                    match ext.to_str().unwrap() {
+                    match ext.to_str().unwrap().to_lowercase().as_str() {
                         "gltf" => self.load_mesh(path)?,
                         "world" => self.load_world(path)?,
+                        "png" => self.load_image(path)?,
+                        "jpeg" => self.load_image(path)?,
+                        "jpg" => self.load_image(path)?,
                         _ => {}
                     }
                 }
@@ -86,16 +95,67 @@ impl Resources {
 
         Ok(())
     }
+
+    pub fn get_texture(&self, path: impl AsRef<Path>) -> Option<&Arc<wgpu::TextureView>> {
+        self.textures.get(path.as_ref())
+    }
+
+    pub fn load_image(&mut self, path: impl Into<PathBuf>) -> anyhow::Result<()> {
+        let path = path.into();
+
+        log::debug!("loading image: '{:?}'", path);
+
+        let png = image::open(&path)?;
+
+        let texture = self.instance.device.create_texture_with_data(
+            &self.instance.queue,
+            &wgpu::TextureDescriptor {
+                label: Some("loaded png"),
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                size: wgpu::Extent3d {
+                    width: png.width(),
+                    height: png.height(),
+                    depth_or_array_layers: 1,
+                },
+                dimension: wgpu::TextureDimension::D2,
+                mip_level_count: 1,
+                sample_count: 1,
+                usage: wgpu::TextureUsage::COPY_DST | wgpu::TextureUsage::SAMPLED,
+            },
+            png.to_rgba8().as_bytes(),
+        );
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("loaded png view"),
+            format: None,
+            dimension: None,
+            aspect: wgpu::TextureAspect::All,
+            base_mip_level: 0,
+            mip_level_count: None,
+            base_array_layer: 0,
+            array_layer_count: None,
+        });
+
+        self.textures.insert(path, Arc::new(view));
+
+        Ok(())
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RenderSettings {
     pub bloom: f32,
+    pub ambient_color: glam::Vec3,
+    pub ambient_strength: f32,
 }
 
 impl Default for RenderSettings {
     fn default() -> Self {
-        Self { bloom: 0.1 }
+        Self {
+            bloom: 0.1,
+            ambient_color: glam::Vec3::ONE,
+            ambient_strength: 0.0,
+        }
     }
 }
 
@@ -110,6 +170,8 @@ pub struct World {
     pub data: WorldData,
     pub nodes: HashMap<NodeId, Node>,
     pub next_node_id: NodeId,
+    #[serde(skip)]
+    pub next_node_validated: bool,
 }
 
 impl World {
@@ -118,11 +180,30 @@ impl World {
             data: WorldData::default(),
             nodes: HashMap::new(),
             next_node_id: NodeId(0),
+            next_node_validated: true,
+        }
+    }
+
+    #[inline]
+    pub fn validate_next_node(&mut self) {
+        if !self.next_node_validated {
+            let next_id = self
+                .nodes
+                .keys()
+                .map(|id| *id)
+                .max()
+                .map(|id| NodeId(id.0 + 1))
+                .unwrap_or(NodeId(0)); 
+
+            self.next_node_id = next_id;
+            self.next_node_validated = true;
         }
     }
 
     #[inline]
     pub fn generate_node_id(&mut self) -> NodeId {
+        self.validate_next_node();
+
         let id = self.next_node_id;
         self.next_node_id.0 += 1;
         id
@@ -135,6 +216,11 @@ impl World {
         self.nodes.insert(id, node);
 
         id
+    }
+
+    #[inline]
+    pub fn despawn(&mut self, id: &NodeId) {
+        self.nodes.remove(id);
     }
 
     #[inline]
@@ -158,6 +244,8 @@ impl World {
     #[inline]
     pub fn render<'a>(&'a mut self, resources: &'a Resources, frame: &mut Frame<'a>) {
         frame.bloom = self.data.render_settings.bloom;
+        frame.ambient_color = self.data.render_settings.ambient_color;
+        frame.ambient_strength = self.data.render_settings.ambient_strength;
 
         for (id, node) in &mut self.nodes {
             node.render(*id, resources, frame);

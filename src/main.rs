@@ -77,7 +77,8 @@ fn main() -> anyhow::Result<()> {
         egui::Vec2::new(size.width as f32, size.height as f32),
     ));
 
-    let mut world = resources.get_world("assets/office.world").cloned().unwrap();
+    let loaded_world = "assets/office.world";
+    let mut world = resources.get_world(loaded_world).cloned().unwrap();
 
     let mut aspect = size.width as f32 / size.height as f32;
     let mut cursor_position = Vec2::ZERO;
@@ -88,14 +89,14 @@ fn main() -> anyhow::Result<()> {
 
         match event {
             Event::RedrawRequested(_) | Event::NewEvents(StartCause::Poll) => {
-                let frame = editor.ctx.begin_frame(editor.input.take());
+                editor.ctx.begin_frame(editor.input.take());
 
                 if let Some(texture) = &mut egui_texture {
                 } else {
                     egui_texture = Some(editor.texture(&instance));
                 }
 
-                editor.ui(&mut world);
+                editor.ui(&mut world, loaded_world);
 
                 let (output, shapes) = editor.ctx.end_frame();
                 let clipped_meshes = editor.ctx.tessellate(shapes);

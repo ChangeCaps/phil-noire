@@ -49,6 +49,15 @@ struct PbrMaterial {
 [[group(0), binding(2)]]
 var<uniform> material: PbrMaterial;
 
+[[group(1), binding(0)]]
+var t_albedo: texture_2d<f32>;
+
+[[group(1), binding(1)]]
+var t_emission: texture_2d<f32>;
+
+[[group(2), binding(0)]]
+var sampler: sampler;
+
 struct FragmentOutput {
 	[[location(0)]] position: vec4<f32>;
 	[[location(1)]] normal: vec4<f32>;
@@ -60,10 +69,13 @@ struct FragmentOutput {
 fn main(in: VertexOutput) -> FragmentOutput {
 	var out: FragmentOutput;
 
+	let albedo = textureSample(t_albedo, sampler, in.uv).rgb;
+	let emission = textureSample(t_emission, sampler, in.uv).rgb;
+
 	out.position = vec4<f32>(in.w_position.xyz, material.specular_bloom);
 	out.normal = vec4<f32>(in.w_normal.xyz, 1.0);
-	out.albedo = vec4<f32>(material.albedo, 0.0);
-	out.emission = vec4<f32>(material.emission, 0.0);
+	out.albedo = vec4<f32>(material.albedo * albedo, 0.0);
+	out.emission = vec4<f32>(material.emission * emission, 0.0);
 
 	return out;
 }

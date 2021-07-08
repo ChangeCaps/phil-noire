@@ -12,6 +12,7 @@ pub struct NodeId(pub u64);
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Node {
+    pub name: String,
     pub transform: Transform,
     pub components: Vec<Component>,
 }
@@ -69,9 +70,18 @@ macro_rules! labled {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum Component {
-    Mesh { mesh: String, material: PbrMaterial },
+    Mesh {
+        mesh: String,
+        albedo: String,
+        emission: String,
+        material: PbrMaterial,
+    },
     DirectionalLight(DirectionalLight),
-    Camera { fov: f32, near: f32, far: f32 },
+    Camera {
+        fov: f32,
+        near: f32,
+        far: f32,
+    },
     Player,
     PlayerCamera,
 }
@@ -97,18 +107,31 @@ impl Component {
     #[inline]
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         match self {
-            Self::Mesh { mesh, material } => {
+            Self::Mesh {
+                mesh,
+                albedo,
+                emission,
+                material,
+            } => {
                 ui.text_edit_singleline(mesh);
 
-                let mut albedo = material.albedo.into();
-                ui.color_edit_button_rgb(&mut albedo);
-                material.albedo = albedo.into();
+                let mut albedo_color = material.albedo.into();
+                labled!(ui, "albedo", ui.color_edit_button_rgb(&mut albedo_color));
+                material.albedo = albedo_color.into();
 
-                let mut emission = material.emission.into();
-                ui.color_edit_button_rgb(&mut emission);
-                material.emission = emission.into();
+                ui.text_edit_singleline(albedo);
 
-                ui.add(Slider::new(&mut material.specular_bloom, 0.0..=1.0).text("Specular Bloom"));
+                let mut emission_color = material.emission.into();
+                labled!(
+                    ui,
+                    "emission",
+                    ui.color_edit_button_rgb(&mut emission_color)
+                );
+                material.emission = emission_color.into();
+
+                ui.text_edit_singleline(emission);
+
+                ui.add(Slider::new(&mut material.specular_bloom, 0.0..=1.0).text("specular bloom"));
             }
             Self::Camera { fov, near, far } => {
                 labled!(ui, "fov", ui.add(DragValue::new(fov)));
@@ -161,9 +184,20 @@ impl Component {
         frame: &mut Frame<'a>,
     ) {
         match self {
-            Self::Mesh { mesh, material } => {
+            Self::Mesh {
+                mesh,
+                albedo,
+                emission,
+                material,
+            } => {
                 if let Some(mesh) = resources.get_mesh(mesh) {
-                    frame.render_mesh(mesh, material, transform.matrix())
+                    frame.render_mesh(
+                        mesh,
+                        material,
+                        resources.get_texture(albedo),
+                        resources.get_texture(emission),
+                        transform.matrix(),
+                    )
                 }
             }
             Self::DirectionalLight(light) => frame.add_directional_light(*light),
